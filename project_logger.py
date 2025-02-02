@@ -1,31 +1,5 @@
-# OUTLINE
-# 1. present ui options
-# 2a. receive inputs
-# 2b. store inputs
-# 3. start timer
-# 4a. get current time
-# 4a. calculate elapsed time
-# 4b. present current timer
-# 5. present options
-# 6. handle pause keystroke
-# 7. handle stop keystroke
-# 8. when timer is stopped, store date, start time, end time, elapsed time,
-# project number
-
-# UI Layout
-# Project Time Tracker
-# Options: | s - start | s - stop | p - pause | e - exit without saving |
-# Project #:    XXXXX
-# Start Time:   XX:XX
-# Elapsed Time: XX:XX
-
-# NOTES
-# o I think I should have the alias as prjt
-# o I am going to have it as a true command line interface
-#   it will have flags which I will detail
-#   pass flags to stop and start and pause etc
-# o db has form as below
-# [["project number", "XXXXXX"], ...]
+# Project Logger
+# command line tool for logging time working on projects
 
 # FLAGS
 # -h    help
@@ -35,16 +9,23 @@
 # -s    status
 # -r    resume a new timer of the last project used
 
+# TODO: add functionality to handle project description seperately from number
+
 import sys
 import json
 import datetime
+import codecs
 
 now = datetime.datetime.now()
 
-# load in database
+# load database
 with open('pt_db.txt', 'r+', encoding="utf-8") as f:
     db_json = f.read()
     db = json.loads(db_json)
+
+# load documentation
+with open('docs.txt', 'r+', encoding="utf-8") as f:
+    docs = f.read()
 
 proj_num = ""
 date = str(now.day) + "/" + str(now.month)
@@ -117,21 +98,15 @@ def project_logger():
     parse_db()
     print(ui)
 
-    if len(argv) == 0:
-        print(" error: too few arguments\n for help use -h")
+    if len(argv) > 4:
+        print(" error: too many arguments\n for help use -h")
     else:
+        if len(argv) == 0:
+            argv.append("-s")
         match argv[0]:
             case "-h":  # begin
-                print(
-                    " -h (help)\n\
- -b (begin)      begin timing a project, requires project number to be passed as second argument\n\
- -e (end)        end timing a project. Appends log of elapsed time to project_log.csv\n\
- -p (pause)      pause timer\n\
- -r (resume)     resume timer\n\
- -s (status)     prints out status of current project timer\n")
+                print(docs)
             case "-b":  # begin
-                # TODO: add functionality to handle project description seperately from number
-                # TODO: clear interactive lines after input
                 if state != 0:
                     print(" error: timer already started, use -s to check state")
                 elif len(argv) > 2:
@@ -142,12 +117,16 @@ def project_logger():
                         counter = 0
                         while counter < 3:
                             opt = input(
-                                "would you like to continue working on project " + proj_num + "? (y/n): ")
+                                " would you like to continue working on project " + proj_num + "? (y/n): ")
+                            print(codecs.escape_decode(
+                                bytes("\u001b[1A\u001b[0K", "utf-8"))[0].decode("utf-8"), end="")
                             if opt == 'y':
                                 break
                             elif opt == 'n':
                                 proj_num = input(
-                                    "please enter new project number: ")
+                                    " please enter new project number: ")
+                                print(codecs.escape_decode(
+                                    bytes("\u001b[1A\u001b[0K", "utf-8"))[0].decode("utf-8"), end="")
                                 break
                             counter += 1
                         if counter >= 3:
@@ -180,7 +159,7 @@ def project_logger():
                     print("\n log saved")
                     flush_db()
 
-            case "-p":
+            case "-p":  # pause
                 if len(argv) != 1:
                     print(
                         " error: incorrect number of arguments\n usage: project_logger.py -p")
@@ -194,7 +173,7 @@ def project_logger():
                     print("\n timer paused\n use -r to resume or -e to end")
                     state = 2
                     save_db()
-            case "-r":
+            case "-r":  # resume
                 if len(argv) != 1:
                     print(
                         " error: incorrect number of arguments\n usage: project_logger.py -r")
@@ -209,7 +188,7 @@ def project_logger():
                     print("\n timer resumed\n use -p to pause or -e to end")
                     state = 1
                     save_db()
-            case "-s":
+            case "-s":  # status
                 if len(argv) != 1:
                     print(
                         " error: incorrect number of arguments\n usage: project_logger.py -s")
@@ -230,6 +209,15 @@ def project_logger():
                         print(
                             " timer state:    paused\n\n use -r to resume or -e to end")
                     save_db()
+            case "-c":  # cancel
+                if len(argv) != 1:
+                    print(
+                        " error: incorrect number of arguments\n usage: project_logger.py -e")
+                elif state == 0:
+                    print(" error: timer not started, use -b to begin")
+                else:
+                    print(" log cancelled")
+                    flush_db()
 
 
 if __name__ == '__main__':

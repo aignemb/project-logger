@@ -1,0 +1,18 @@
+ See https://github.com/aignemb/project-logger.git
+ Simple command line interface tool to track and log time spend working on projects.
+
+ Usage: python3 python_logger.py [FLAG]... [ARGUMENT]...
+
+ Options:
+  -h, --help            Display documentation
+
+  -b, --begin           Start timer
+                        (optional) Add project number as string for second argument
+  -e, --end             End timer 
+                        Saves log to csv file
+
+  -p, --pause           Pause timer
+  -r, --resume          Resume timer
+
+  -s, --status          Check tool status (idle, running, paused)
+  <no options>          Leaving out options will default to check status
