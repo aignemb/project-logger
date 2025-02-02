@@ -19,6 +19,7 @@ $ project_logger.py -h
 
 ## Install
 - requires git
+
 $ git clone https://github.com/aignemb/project-logger.git
 
 ## Optional Setup
