@@ -15,12 +15,12 @@ Usage: python3 project_logger.py [FLAG]... [ARGUMENT]...
 Run help (see exaple below) for detailed usage instructions  
 
 Example to display help menu  
-$ project_logger.py -h  
+`$ project_logger.py -h`  
 
 ## Install
 - requires git
 
-$ git clone https://github.com/aignemb/project-logger.git
+`$ git clone https://github.com/aignemb/project-logger.git`
 
 ## Optional Setup
 ### Aliasing (recommended)
@@ -28,16 +28,16 @@ Add the following line to shell configuration file e.g. .bashrc or .zshrc
 alias <alias>="python3 project_logger.py"  
 
 Example:  
-alias pl="python3 project_logger.py"  
+`alias pl="python3 project_logger.py"`  
 
 ### Add to PATH (recommended)
 - allows you to use tool from any directory
 
 Add the following line to shell configuration file e.g. .bashrc or .zshrc  
-export PATH="$PATH:<path to project logger directory>"  
+`export PATH="$PATH:<path to project logger directory>"`  
 
 Example:  
-export PATH="$PATH:~/Project Logger"  
+`export PATH="$PATH:~/Project Logger"`  
 
 ## Compatibility
 Currently only tested on Linux but should work on other OS as well.  
