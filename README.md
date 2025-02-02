@@ -4,7 +4,7 @@ Simple command line interface tool to track and log time spend working on projec
 
 ## Features
 - Track and log time spent working on a project
-- Start, stop, pause, resume, and check the status of tool (idle, running, paused)
+- Start, stop, pause, resume, cancel, and check the status of tool (idle, running, paused)
 - Automatically logs date, time elapsed, and project description to file project_log.csv
 
 ## Usage
