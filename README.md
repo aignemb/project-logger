@@ -36,4 +36,5 @@ Currently only tested on Linux but should work on other OS as well.
 ## Coming Soon
 - Change name of log file
 - Clear log file
-- configuration recommendations to call from outside tool directory
+- Configuration recommendations to call from outside tool directory
+- Same project consolodation within given day
