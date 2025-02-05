@@ -18,14 +18,6 @@ import codecs
 
 now = datetime.datetime.now()
 
-# load database
-with open('pt_db.txt', 'r+', encoding="utf-8") as f:
-    db_json = f.read()
-    db = json.loads(db_json)
-
-# load documentation
-with open('docs.txt', 'r+', encoding="utf-8") as f:
-    docs = f.read()
 
 proj_num = ""
 date = str(now.day) + "/" + str(now.month)
@@ -35,6 +27,17 @@ time_elapsed = 0
 state = 0  # 0-idle; 1-running; 2-paused
 
 ui = " Project Logger\n"
+db_filename = "pl_db.txt"
+log_filename = "project_log.csv"
+
+# load database
+with open('pl_db.txt', 'r+', encoding="utf-8") as f:
+    db_json = f.read()
+    db = json.loads(db_json)
+
+# load documentation
+with open('docs.txt', 'r+', encoding="utf-8") as f:
+    docs = f.read()
 
 
 def parse_db():
@@ -64,8 +67,8 @@ def fill_db():
 def save_db():
     global db
     fill_db()
-    open('pt_db.txt', 'w').close()  # clear the file
-    with open('pt_db.txt', 'r+', encoding="utf-8") as f:
+    open(db_filename, 'w').close()  # clear the file
+    with open(db_filename, 'r+', encoding="utf-8") as f:
         json.dump(db, f)
 
 
@@ -154,7 +157,7 @@ def project_logger():
                     print(" project number: " + proj_num)
                     log = compose_log()
                     print(" elapsed time:   " + time_elapsed)
-                    with open('project_log.csv', 'a', encoding="utf-8") as f:
+                    with open(log_filename, 'a', encoding="utf-8") as f:
                         f.write(log)
                     print("\n log saved")
                     flush_db()
@@ -193,22 +196,19 @@ def project_logger():
                     print(
                         " error: incorrect number of arguments\n usage: project_logger.py -s")
                 else:
-                    if time[0][0] == -1:
+                    if state == 0:
                         time_elapsed = "0:0"
-                    else:
+                        message = " timer state:    idle\n\n use -b to begin"
+                    elif state == 1:
                         time[-1][1] = now.hour * 60 + now.minute
                         time_elapsed = calc_elapsed()
+                        message = " timer state:    running\n\n use -p to pause or -e to end"
+                    elif state == 2:
+                        time_elapsed = calc_elapsed()
+                        message = " timer state:    paused\n\n use -r to resume or -e to end"
                     print(" project number: " + proj_num)
                     print(" elapsed time:   " + time_elapsed)
-                    if state == 0:
-                        print(" timer state:    idle\n\n use -b to begin")
-                    elif state == 1:
-                        print(
-                            " timer state:    running\n\n use -p to pause or -e to end")
-                    else:
-                        print(
-                            " timer state:    paused\n\n use -r to resume or -e to end")
-                    save_db()
+                    print("\n" + message)
             case "-c":  # cancel
                 if len(argv) != 1:
                     print(
