@@ -151,6 +151,15 @@ def project_logger():
                         " error: incorrect number of arguments\n usage: project_logger.py -e")
                 elif state == 0:
                     print(" error: timer not started, use -b to begin")
+                elif state == 2:
+                    time_elapsed = calc_elapsed()
+                    print(" project number: " + proj_num)
+                    log = compose_log()
+                    print(" elapsed time:   " + time_elapsed)
+                    with open(log_filename, 'a', encoding="utf-8") as f:
+                        f.write(log)
+                    print("\n log saved")
+                    flush_db()
                 else:
                     time[-1][1] = now.hour * 60 + now.minute
                     time_elapsed = calc_elapsed()
