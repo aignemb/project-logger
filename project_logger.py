@@ -18,9 +18,8 @@ import codecs
 
 now = datetime.datetime.now()
 
-
 proj_num = ""
-date = str(now.day) + "/" + str(now.month)
+date = str(now.month) + "/" + str(now.day)
 # time format: [[start1(m), end1(m)], [start2(m), start2(m)]...]
 time = []
 time_elapsed = 0
