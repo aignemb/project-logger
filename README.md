@@ -25,8 +25,8 @@ Example to display help menu
 ## Optional Setup
 ### Aliasing (recommended)
 Add the following line to shell configuration file e.g. .bashrc or .zshrc  
-alias <tool alias>="python3 project_logger.py"  
-alais <go to tool alias>="cd <path/to/tool/folder>; <tool alais>" (run tool from any directory)
+alias \<tool alias>="python3 project_logger.py"  
+alais \<go to tool alias>="cd \<path/to/tool/folder>; \<tool alais>" (run tool from any directory)
 
 Example:  
 `alias pl="python3 project_logger.py"`  
