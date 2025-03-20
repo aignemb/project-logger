@@ -1,6 +1,6 @@
 # PROJECT LOGGER
 
-Simple command line interface tool to track and log time spend working on projects.  
+Simple command line interface tool to track and log time spent working on projects.  
 
 ## Features
 - Track and log time spent working on a project
