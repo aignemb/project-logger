@@ -88,10 +88,21 @@ def calc_elapsed():
     minutes = minutes % 60
     return str(hours) + ":" + str(minutes)
 
+def decode_time():
+    global time
+    log = ""
+    for e in time:
+        start_minutes = int(e[0] % 60)
+        start_hours = int((e[0] - start_minutes) / 60)
+        end_minutes = int(e[1] % 60)
+        end_hours = int((e[1] - end_minutes) / 60)
+        log = log + str(start_hours) + ":" + str(start_minutes) + " - " + str(end_hours) + ":" + str(end_minutes) + ","
+    return log
+
 
 def compose_log():
     global proj_num, time_elapsed
-    return date + "," + calc_elapsed() + "," + proj_num + "\n"
+    return date + "," + calc_elapsed() + "," + proj_num + "," + decode_time() + "\n"
 
 
 def project_logger():
