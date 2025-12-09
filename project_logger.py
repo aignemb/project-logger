@@ -15,6 +15,7 @@ import sys
 import json
 import datetime
 import codecs
+import argparse
 
 now = datetime.datetime.now()
 
@@ -104,140 +105,177 @@ def compose_log():
     global proj_num, time_elapsed
     return date + "," + calc_elapsed() + "," + proj_num + "," + decode_time() + "\n"
 
+def arg_sanity(args):
+    first_flag = False
 
-def project_logger():
+    for arg, val in vers(args).items():
+        if arg in ("begin","description"): continue # non-exclusive flags
+
+        if val and first_flag: # already a flag
+            return False
+        elif val:
+            first_flag = True
+
+    return True
+
+
+def project_logger(args):
     global proj_num, time, state, db
-    argv = sys.argv[1:]  # read in script arguments
     parse_db()
     print(ui)
 
-    if len(argv) > 4:
-        print(" error: too many arguments\n for help use -h")
-    else:
-        if len(argv) == 0:
-            argv.append("-s")
-        match argv[0]:
-            case "-h":  # begin
-                print(docs)
-            case "-b":  # begin
-                if state != 0:
-                    print(" error: timer already started, use -s to check state")
-                elif len(argv) > 2:
-                    print(
-                        " error: incorrect number of arguments\n usage: project_logger.py -b <project number [XXXXX]>")
-                else:
-                    if len(argv) == 1:
-                        counter = 0
-                        while counter < 3:
-                            opt = input(
-                                " would you like to continue working on project " + proj_num + "? (y/n): ")
+    if not arg_sanity(args):
+        print( "error: too many exclusive flags or arguments passed")
+        return 
+
+    if args.help:
+        print(docs)
+
+    elif args.begin: 
+
+    match argv[0]:
+        case "-b":  # begin
+            if state != 0:
+                print(" error: timer already started, use -s to check state")
+            elif len(argv) > 2:
+                print(
+                    " error: incorrect number of arguments\n usage: project_logger.py -b <project number [XXXXX]>")
+            else:
+                if len(argv) == 1:
+                    counter = 0
+                    while counter < 3:
+                        opt = input(
+                            " would you like to continue working on project " + proj_num + "? (y/n): ")
+                        print(codecs.escape_decode(
+                            bytes("\u001b[1A\u001b[0K", "utf-8"))[0].decode("utf-8"), end="")
+                        if opt == 'y':
+                            break
+                        elif opt == 'n':
+                            proj_num = input(
+                                " please enter new project number: ")
                             print(codecs.escape_decode(
                                 bytes("\u001b[1A\u001b[0K", "utf-8"))[0].decode("utf-8"), end="")
-                            if opt == 'y':
-                                break
-                            elif opt == 'n':
-                                proj_num = input(
-                                    " please enter new project number: ")
-                                print(codecs.escape_decode(
-                                    bytes("\u001b[1A\u001b[0K", "utf-8"))[0].decode("utf-8"), end="")
-                                break
-                            counter += 1
-                        if counter >= 3:
-                            print(" too many failed attempts, quitting...")
-                            sys.exit()
-                    else:
-                        proj_num = argv[1]
-                    temp_time = now.hour * 60 + now.minute
-                    time = [[temp_time, temp_time]]
+                            break
+                        counter += 1
+                    if counter >= 3:
+                        print(" too many failed attempts, quitting...")
+                        sys.exit()
+                else:
+                    proj_num = argv[1]
+                temp_time = now.hour * 60 + now.minute
+                time = [[temp_time, temp_time]]
+                time_elapsed = calc_elapsed()
+                print(" project number: " + proj_num)
+                print(" elapsed time:   " + time_elapsed)
+                print("\n timer started\n use -p to pause or -e to end")
+                state = 1
+                save_db()
+        case "-e":  # end
+            if len(argv) != 1:
+                print(
+                    " error: incorrect number of arguments\n usage: project_logger.py -e")
+            elif state == 0:
+                print(" error: timer not started, use -b to begin")
+            elif state == 2:
+                time_elapsed = calc_elapsed()
+                print(" project number: " + proj_num)
+                log = compose_log()
+                print(" elapsed time:   " + time_elapsed)
+                with open(log_filename, 'a', encoding="utf-8") as f:
+                    f.write(log)
+                print("\n log saved")
+                flush_db()
+            else:
+                time[-1][1] = now.hour * 60 + now.minute
+                time_elapsed = calc_elapsed()
+                print(" project number: " + proj_num)
+                log = compose_log()
+                print(" elapsed time:   " + time_elapsed)
+                with open(log_filename, 'a', encoding="utf-8") as f:
+                    f.write(log)
+                print("\n log saved")
+                flush_db()
+
+        case "-p":  # pause
+            if len(argv) != 1:
+                print(
+                    " error: incorrect number of arguments\n usage: project_logger.py -p")
+            elif state != 1:
+                print(" error: timer not running, use -s to check state")
+            else:
+                time[-1][1] = now.hour * 60 + now.minute
+                time_elapsed = calc_elapsed()
+                print(" project number: " + proj_num)
+                print(" elapsed time:   " + time_elapsed)
+                print("\n timer paused\n use -r to resume or -e to end")
+                state = 2
+                save_db()
+        case "-r":  # resume
+            if len(argv) != 1:
+                print(
+                    " error: incorrect number of arguments\n usage: project_logger.py -r")
+            elif state != 2:
+                print(" error: timer not paused, use -s to check state")
+            else:
+                temp_time = now.hour * 60 + now.minute
+                time.append([temp_time, temp_time])
+                time_elapsed = calc_elapsed()
+                print(" project number: " + proj_num)
+                print(" elapsed time:   " + time_elapsed)
+                print("\n timer resumed\n use -p to pause or -e to end")
+                state = 1
+                save_db()
+        case "-s":  # status
+            if len(argv) != 1:
+                print(
+                    " error: incorrect number of arguments\n usage: project_logger.py -s")
+            else:
+                if state == 0:
+                    time_elapsed = "0:0"
+                    message = " timer state:    idle\n\n use -b to begin"
+                elif state == 1:
+                    time[-1][1] = now.hour * 60 + now.minute
                     time_elapsed = calc_elapsed()
-                    print(" project number: " + proj_num)
-                    print(" elapsed time:   " + time_elapsed)
-                    print("\n timer started\n use -p to pause or -e to end")
-                    state = 1
-                    save_db()
-            case "-e":  # end
-                if len(argv) != 1:
-                    print(
-                        " error: incorrect number of arguments\n usage: project_logger.py -e")
-                elif state == 0:
-                    print(" error: timer not started, use -b to begin")
+                    message = " timer state:    running\n\n use -p to pause or -e to end"
                 elif state == 2:
                     time_elapsed = calc_elapsed()
-                    print(" project number: " + proj_num)
-                    log = compose_log()
-                    print(" elapsed time:   " + time_elapsed)
-                    with open(log_filename, 'a', encoding="utf-8") as f:
-                        f.write(log)
-                    print("\n log saved")
-                    flush_db()
-                else:
-                    time[-1][1] = now.hour * 60 + now.minute
-                    time_elapsed = calc_elapsed()
-                    print(" project number: " + proj_num)
-                    log = compose_log()
-                    print(" elapsed time:   " + time_elapsed)
-                    with open(log_filename, 'a', encoding="utf-8") as f:
-                        f.write(log)
-                    print("\n log saved")
-                    flush_db()
-
-            case "-p":  # pause
-                if len(argv) != 1:
-                    print(
-                        " error: incorrect number of arguments\n usage: project_logger.py -p")
-                elif state != 1:
-                    print(" error: timer not running, use -s to check state")
-                else:
-                    time[-1][1] = now.hour * 60 + now.minute
-                    time_elapsed = calc_elapsed()
-                    print(" project number: " + proj_num)
-                    print(" elapsed time:   " + time_elapsed)
-                    print("\n timer paused\n use -r to resume or -e to end")
-                    state = 2
-                    save_db()
-            case "-r":  # resume
-                if len(argv) != 1:
-                    print(
-                        " error: incorrect number of arguments\n usage: project_logger.py -r")
-                elif state != 2:
-                    print(" error: timer not paused, use -s to check state")
-                else:
-                    temp_time = now.hour * 60 + now.minute
-                    time.append([temp_time, temp_time])
-                    time_elapsed = calc_elapsed()
-                    print(" project number: " + proj_num)
-                    print(" elapsed time:   " + time_elapsed)
-                    print("\n timer resumed\n use -p to pause or -e to end")
-                    state = 1
-                    save_db()
-            case "-s":  # status
-                if len(argv) != 1:
-                    print(
-                        " error: incorrect number of arguments\n usage: project_logger.py -s")
-                else:
-                    if state == 0:
-                        time_elapsed = "0:0"
-                        message = " timer state:    idle\n\n use -b to begin"
-                    elif state == 1:
-                        time[-1][1] = now.hour * 60 + now.minute
-                        time_elapsed = calc_elapsed()
-                        message = " timer state:    running\n\n use -p to pause or -e to end"
-                    elif state == 2:
-                        time_elapsed = calc_elapsed()
-                        message = " timer state:    paused\n\n use -r to resume or -e to end"
-                    print(" project number: " + proj_num)
-                    print(" elapsed time:   " + time_elapsed)
-                    print("\n" + message)
-            case "-c":  # cancel
-                if len(argv) != 1:
-                    print(
-                        " error: incorrect number of arguments\n usage: project_logger.py -e")
-                elif state == 0:
-                    print(" error: timer not started, use -b to begin")
-                else:
-                    print(" log cancelled")
-                    flush_db()
-
+                    message = " timer state:    paused\n\n use -r to resume or -e to end"
+                print(" project number: " + proj_num)
+                print(" elapsed time:   " + time_elapsed)
+                print("\n" + message)
+        case "-c":  # cancel
+            if len(argv) != 1:
+                print(
+                    " error: incorrect number of arguments\n usage: project_logger.py -e")
+            elif state == 0:
+                print(" error: timer not started, use -b to begin")
+            else:
+                print(" log cancelled")
+                flush_db()
 
 if __name__ == '__main__':
-    project_logger()
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("-h", "--help", action="store_true")
+    parser.add_argument(
+            "-b", "--begin",
+            nargs="?",
+            const=""
+            )
+    parser.add_argument(
+            "-d", "--description",
+            nargs="?",
+            const=""
+            )
+    parser.add_argument("-e", "--end", action="store_true")
+    parser.add_argument("-p", "--pause", action="store_true")
+    parser.add_argument("-s", "--status", action="store_true")
+    parser.add_argument("-r", "--resume", action="store_true")
+
+    if len(sys.argv) == 1:
+        args = parser.parse_args(["-s"])
+
+    else: 
+        args = parser.parse_args()
+
+    project_logger(args)
