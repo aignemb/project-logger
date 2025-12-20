@@ -111,20 +111,17 @@ def handle_end(state, connection, cursor):
     if state.status == 'idle':
         message = 'timer not running, use -b to begin timer'
     else:
+        end = datetime.now()
+        start = str_to_date(state.start)
 
-        now = datetime.now()
-        now = date_to_str(now)
-        message = 'error: end date after start date'
+        if end < start:
+            pass
+        else:
+            # should not happen unless ability to edit start and end datetime is added
+            return 'error: end date after start date'
 
         state.status = 'idle'
-
-        if len(begin_args) == 1:
-            state.project = begin_args[0]
-            state.task = 'none'
-        else:
-            state.project = begin_args[0]
-            state.task = begin_args[1]
-
+        state.end = date_to_str(end)
 
         push_log(state, connection, cursor)
     return message
@@ -200,8 +197,7 @@ if __name__ == '__main__':
         elif args.task != None:
             handle_task(state, connection, cursor, args.task)
         elif args.end == True:
-            pass
-            #handle_end(state, connection, cursor)
+            handle_end(state, connection, cursor)
         elif args.pause == True:
             handle_pause(state, connection, cursor)
         elif args.resume == True:
