@@ -103,7 +103,34 @@ def handle_task(state, connection, cursor, args):
     print("task")
 
 def handle_end(state, connection, cursor):
-    print("end")
+    message = 'timer ended, log saved successfully'
+    if state.status == 'idle':
+        message = 'timer not running, use -b to begin timer'
+    else:
+
+        now = datetime.datetime.now()
+        end = now.strftime('%H') + now.strftime('%M')
+        delta_date = end_date - state.date
+
+        if delta_date == 0:
+            pass
+        elif delta_date > 0:
+            end += end[:2] + 
+        else:
+            message = 'error: end date after start date'
+
+        state.status = 'idle'
+
+        if len(begin_args) == 1:
+            state.project = begin_args[0]
+            state.task = 'none'
+        else:
+            state.project = begin_args[0]
+            state.task = begin_args[1]
+
+
+        push_log(state, connection, cursor)
+    return message
 
 def handle_pause(state, connection, cursor):
     print("pause")
