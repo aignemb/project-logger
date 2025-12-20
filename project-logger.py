@@ -4,7 +4,7 @@ import json
 import datetime
 import codecs
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, astuple
 
 class OneOrTwo(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -13,26 +13,94 @@ class OneOrTwo(argparse.Action):
             parser.error(f"{option_string} requires at least 1 but no more than 2 arguments")
 @dataclass
 class State:
-    status: str = 'idle'
-    session: str = 'none'
+    status: str
+    session: str
+    date: str
+    project: str
+    task: str
+    start: str
 
-# state
-# > status
-# > current project
-# > current task
-# > thi
-# > days
-# > > projects
-# > > > tasks
+tooltips = {'idle': 'use -b project [task] to start timer',
+            'running': 'use -p to pause, -e to end, or -c to cancel session',
+            'paused': 'use -r to resume or -c to cancel'
+            }
+
+message = None
+
+def display_ui(state, tooltips, caller_message, elapsed):
+
+    ui = f''' Project Logger
+
+ Status:    {state.status}
+ Project:   {state.project}
+ Task:      {state.task}
+ Elapsed:   {elapsed}
+
+ {caller_message}
+ {tooltips[state.status]}
+    '''
+    print(ui)
+
+def find_elapsed(state, connection, cursor):
+    pass
+
+def push_log(state, connection, cursor):
+    now = datetime.datetime.now()
+    end = now.hour * 60 + now.minute
+
+    push_log_query = '''
+    INSERT INTO Log (session, date, project, task, start, end)
+    VALUES(?,?,?,?,?,?);
+    '''
+
+    cursor.execute(push_log_query, (state.session, state.date, state.project, state.task, state.start, end))
+    connection.commit()
+
+def push_state(state, connection, cursor):
+    insert_push_query = '''
+    INSERT INTO State (status, session, date, project, task, start)
+    VALUES(?,?,?,?,?,?);
+    '''
+    update_push_query = '''
+    UPDATE State
+    SET status = ? , session = ? , date = ? , project = ? , task = ? , start = ?;
+    '''
+    cursor.execute('SELECT * FROM State;')
+    if cursor.fetchone() is None:
+        cursor.execute(insert_push_query, astuple(state))
+    else:
+        cursor.execute(update_push_query, astuple(state))
+
+    connection.commit()
 
 def handle_status(state, connection, cursor):
     print("status")
 
-def handle_begin(state, connection, cursor, args):
-    print("begin")
+def handle_begin(state, connection, cursor, begin_args):
+    message = 'timer started, use -p to pause or -e to end'
+    if state.status != 'idle':
+        message = 'timer already running, use -e to end before starting a timer'
+    else:
+        state.status = 'running'
 
-def handle_description(state, connection, cursor, args):
-    print("description")
+        now = datetime.datetime.now()
+        state.session = now.strftime('%Y%m%d%H%M%S')
+        state.date = str(now.month) + "/" + str(now.day)
+        state.start = now.hour * 60 + now.minute
+
+        if len(begin_args) == 1:
+            state.project = begin_args[0]
+            state.task = 'none'
+        else:
+            state.project = begin_args[0]
+            state.task = begin_args[1]
+
+
+        push_log(state, connection, cursor)
+    return message
+
+def handle_task(state, connection, cursor, args):
+    print("task")
 
 def handle_end(state, connection, cursor):
     print("end")
@@ -56,7 +124,7 @@ if __name__ == '__main__':
 
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS Log (
-            id  INTEGER PRIMARY KEY,
+            id  INTEGER PRIMARY KEY AUTOINCREMENT,
             session TEXT,
             date TEXT,
             project TEXT,
@@ -67,29 +135,24 @@ if __name__ == '__main__':
         ''')
         connection.commit()
 
-        cursor.execute('DROP TABLE IF EXISTS State;')
-        connection.commit()
-
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS State (
             id  INTEGER PRIMARY KEY,
             status TEXT,
-            session TEXT
+            session TEXT,
+            date TEXT,
+            project TEXT,
+            task TEXT,
+            start INTEGER
         );
         ''')
         connection.commit()
 
-        state = State()
-
-        cursor.execute('SELECT * FROM State;')
-        if cursor.fetchone() is None:
-            cursor.execute('''INSERT INTO State (status, session) VALUES(?,?);''', (state.status, state.session))
-            print('initializing state\n')
-        else:
-            state.status = cursor.fetchone()
-            state.session = cursor.fetchone()
-
-        print(state.status + ' | ' + state.session + '\n')
+        cursor.execute('SELECT status, session, date, project, task, start FROM State;')
+        try:
+            state = State(*cursor.fetchone())
+        except TypeError:
+            state = State('idle', 'none', '', '', '', '')
 
         # Set Up Parser
         parser = argparse.ArgumentParser()
@@ -99,7 +162,7 @@ if __name__ == '__main__':
         group.add_argument('-s', '--status', action='store_true')
         group.add_argument('-b', '--begin', nargs='+', action=OneOrTwo, 
                            help='1 \u2264 number of arguments \u2264 2')
-        group.add_argument('-d', '--description')
+        group.add_argument('-t', '--task')
         group.add_argument('-e', '--end', action='store_true')
         group.add_argument('-p', '--pause', action='store_true')
         group.add_argument('-r', '--resume', action='store_true')
@@ -111,9 +174,9 @@ if __name__ == '__main__':
 
         # Dispatch
         if args.begin != None:
-            handle_begin(state, connection, cursor, args.begin)
-        elif args.description != None:
-            handle_description(state, connection, cursor, args.description)
+            message = handle_begin(state, connection, cursor, args.begin)
+        elif args.task != None:
+            handle_task(state, connection, cursor, args.task)
         elif args.end == True:
             handle_end(state, connection, cursor)
         elif args.pause == True:
@@ -126,3 +189,9 @@ if __name__ == '__main__':
             handle_man()
         else: # status or nothing passed
             handle_status(state, connection, cursor)
+
+        push_state(state, connection, cursor)
+
+    ### Testing ###
+
+    display_ui(state, tooltips, message, '1:15')
