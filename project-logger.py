@@ -1,7 +1,7 @@
 import argparse
 import sys
 import json
-import datetime
+from datetime import datetime
 import codecs
 import sqlite3
 from dataclasses import dataclass, astuple
@@ -15,7 +15,6 @@ class OneOrTwo(argparse.Action):
 class State:
     status: str
     session: str
-    date: str
     project: str
     task: str
     start: str
@@ -26,6 +25,12 @@ tooltips = {'idle': 'use -b project [task] to start timer',
             }
 
 message = None
+
+def date_to_str(date):
+    return date.isoformat(sep=' ', timespec='seconds')
+
+def str_to_date(date_str):
+    return datetime.fromisoformat(date_str)
 
 def display_ui(state, tooltips, caller_message, elapsed):
 
@@ -45,25 +50,25 @@ def find_elapsed(state, connection, cursor):
     pass
 
 def push_log(state, connection, cursor):
-    now = datetime.datetime.now()
-    end = now.hour * 60 + now.minute
+    now = datetime.now()
+    end = date_to_str(now)
 
     push_log_query = '''
-    INSERT INTO Log (session, date, project, task, start, end)
-    VALUES(?,?,?,?,?,?);
+    INSERT INTO Log (session, project, task, start, end)
+    VALUES(?,?,?,?,?);
     '''
 
-    cursor.execute(push_log_query, (state.session, state.date, state.project, state.task, state.start, end))
+    cursor.execute(push_log_query, (state.session, state.project, state.task, state.start, end))
     connection.commit()
 
 def push_state(state, connection, cursor):
     insert_push_query = '''
-    INSERT INTO State (status, session, date, project, task, start)
-    VALUES(?,?,?,?,?,?);
+    INSERT INTO State (status, session, project, task, start)
+    VALUES(?,?,?,?,?);
     '''
     update_push_query = '''
     UPDATE State
-    SET status = ? , session = ? , date = ? , project = ? , task = ? , start = ?;
+    SET status = ? , session = ? , project = ? , task = ? , start = ?;
     '''
     cursor.execute('SELECT * FROM State;')
     if cursor.fetchone() is None:
@@ -83,10 +88,9 @@ def handle_begin(state, connection, cursor, begin_args):
     else:
         state.status = 'running'
 
-        now = datetime.datetime.now()
+        now = datetime.now()
         state.session = now.strftime('%Y%m%d%H%M%S')
-        state.date = str(now.month) + "/" + str(now.day)
-        state.start = now.hour * 60 + now.minute
+        state.start = date_to_str(now)
 
         if len(begin_args) == 1:
             state.project = begin_args[0]
@@ -108,16 +112,9 @@ def handle_end(state, connection, cursor):
         message = 'timer not running, use -b to begin timer'
     else:
 
-        now = datetime.datetime.now()
-        end = now.strftime('%H') + now.strftime('%M')
-        delta_date = end_date - state.date
-
-        if delta_date == 0:
-            pass
-        elif delta_date > 0:
-            end += end[:2] + 
-        else:
-            message = 'error: end date after start date'
+        now = datetime.now()
+        now = date_to_str(now)
+        message = 'error: end date after start date'
 
         state.status = 'idle'
 
@@ -153,7 +150,6 @@ if __name__ == '__main__':
         CREATE TABLE IF NOT EXISTS Log (
             id  INTEGER PRIMARY KEY AUTOINCREMENT,
             session TEXT,
-            date TEXT,
             project TEXT,
             task TEXT,
             start INTEGER,
@@ -167,7 +163,6 @@ if __name__ == '__main__':
             id  INTEGER PRIMARY KEY,
             status TEXT,
             session TEXT,
-            date TEXT,
             project TEXT,
             task TEXT,
             start INTEGER
@@ -175,11 +170,11 @@ if __name__ == '__main__':
         ''')
         connection.commit()
 
-        cursor.execute('SELECT status, session, date, project, task, start FROM State;')
+        cursor.execute('SELECT status, session, project, task, start FROM State;')
         try:
             state = State(*cursor.fetchone())
         except TypeError:
-            state = State('idle', 'none', '', '', '', '')
+            state = State('idle', 'none', '', '', '')
 
         # Set Up Parser
         parser = argparse.ArgumentParser()
@@ -205,7 +200,8 @@ if __name__ == '__main__':
         elif args.task != None:
             handle_task(state, connection, cursor, args.task)
         elif args.end == True:
-            handle_end(state, connection, cursor)
+            pass
+            #handle_end(state, connection, cursor)
         elif args.pause == True:
             handle_pause(state, connection, cursor)
         elif args.resume == True:
