@@ -1,7 +1,7 @@
 import argparse
 import sys
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import codecs
 import sqlite3
 from dataclasses import dataclass, astuple
@@ -34,12 +34,15 @@ def str_to_date(date_str):
 
 def display_ui(state, tooltips, caller_message, elapsed):
 
+    elapsed_hm = str(elapsed)
+    elapsed_hm = elapsed_hm[:4]
+
     ui = f''' Project Logger
 
  Status:    {state.status}
  Project:   {state.project}
  Task:      {state.task}
- Elapsed:   {elapsed}
+ Elapsed:   {elapsed_hm}
 
  {caller_message}
  {tooltips[state.status]}
@@ -47,7 +50,30 @@ def display_ui(state, tooltips, caller_message, elapsed):
     print(ui)
 
 def find_elapsed(state, connection, cursor):
-    pass
+    if state.status == 'idle':
+        return timedelta(minutes=0)
+
+    now = datetime.now()
+    elapsed = now - str_to_date(state.start)
+
+    find_in_session_query = '''
+    SELECT start, end FROM Log
+    WHERE session = ? AND task = ?;
+    '''
+
+    cursor.execute(find_in_session_query, (state.session, state.task))
+
+    log = cursor.fetchone()
+    while log is not None:
+        elapsed += str_to_date(log[1]) - str_to_date(log[0])
+        log = cursor.fetchone()
+
+    if elapsed.days > 0:
+        # should make this more elegant
+        print(' Total time elapsed: ' + str(elapsed) + '\n')
+        raise RuntimeError('project-logger does not currently support running for over 24 hours')
+
+    return elapsed
 
 def push_log(state, connection, cursor):
     now = datetime.now()
@@ -79,7 +105,7 @@ def push_state(state, connection, cursor):
     connection.commit()
 
 def handle_status(state, connection, cursor):
-    print("status")
+    return ''
 
 def handle_begin(state, connection, cursor, begin_args):
     message = 'timer started, use -p to pause or -e to end'
@@ -99,8 +125,6 @@ def handle_begin(state, connection, cursor, begin_args):
             state.project = begin_args[0]
             state.task = begin_args[1]
 
-
-        push_log(state, connection, cursor)
     return message
 
 def handle_task(state, connection, cursor, args):
@@ -115,8 +139,6 @@ def handle_end(state, connection, cursor):
         start = str_to_date(state.start)
 
         if end < start:
-            pass
-        else:
             # should not happen unless ability to edit start and end datetime is added
             return 'error: end date after start date'
 
@@ -124,6 +146,7 @@ def handle_end(state, connection, cursor):
         state.end = date_to_str(end)
 
         push_log(state, connection, cursor)
+
     return message
 
 def handle_pause(state, connection, cursor):
@@ -195,22 +218,24 @@ if __name__ == '__main__':
         if args.begin != None:
             message = handle_begin(state, connection, cursor, args.begin)
         elif args.task != None:
-            handle_task(state, connection, cursor, args.task)
+            message = handle_task(state, connection, cursor, args.task)
         elif args.end == True:
-            handle_end(state, connection, cursor)
+            message = handle_end(state, connection, cursor)
         elif args.pause == True:
-            handle_pause(state, connection, cursor)
+            message = handle_pause(state, connection, cursor)
         elif args.resume == True:
-            handle_resume(state, connection, cursor)
+            message = handle_resume(state, connection, cursor)
         elif args.cancel == True:
-            handle_cancel(state, connection, cursor)
+            message = handle_cancel(state, connection, cursor)
         elif args.man == True:
             handle_man()
         else: # status or nothing passed
-            handle_status(state, connection, cursor)
+            message = handle_status(state, connection, cursor)
 
         push_state(state, connection, cursor)
 
     ### Testing ###
 
-    display_ui(state, tooltips, message, '1:15')
+    display_ui(state, tooltips, message,find_elapsed(state, connection, cursor))
+    state.start = '2025-12-20 10:51:39'
+    print(find_elapsed(state, connection, cursor))
