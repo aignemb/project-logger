@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import codecs
 import sqlite3
 from dataclasses import dataclass, astuple
+import re
 
 class OneOrTwo(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -32,6 +33,16 @@ def date_to_str(date):
 def str_to_date(date_str):
     return datetime.fromisoformat(date_str)
 
+def pad(input, chars, padding):
+    ANSI_ESCAPE = re.compile(r'\x1b\[[0-9;]*m')
+    str_len = ANSI_ESCAPE.sub('', input)
+    length = len(str_len)
+
+    if length >= chars:
+        return input
+    else:
+        return input + padding * (chars - length)
+
 def display_ui(state, tooltips, caller_message, elapsed):
 
     elapsed_hm = str(elapsed)
@@ -43,18 +54,17 @@ def display_ui(state, tooltips, caller_message, elapsed):
     elif status == 'paused':
         status = '\033[33mpaused\033[0m'
 
-    ui = f'''\033[1;34m------------------------------------------------------------\033[0m
- \033[1;34mProject Logger\033[0m
-
- Status:    {status}
- Project:   {state.project}
- Task:      {state.task}
- Elapsed:   {elapsed_hm}
-
- {caller_message}
- hint: {tooltips[state.status]}
-\033[1;34m-----------------------------------------------------------\033[0m
-    '''
+    ui = f'''\033[1;34m,--------------------------------------------------------------,\033[0m
+\033[1;34m|\033[0m\033[1;34m {pad('Project Logger', 60, ' ')} |\033[0m
+\033[1;34m|                                                              |\033[0m
+\033[1;34m|\033[0m Status:    {pad(status, 49, ' ')} \033[1;34m|\033[0m
+\033[1;34m|\033[0m Project:   {pad(state.project, 49, ' ')} \033[1;34m|\033[0m
+\033[1;34m|\033[0m Task:      {pad(state.task, 49, ' ')} \033[1;34m|\033[0m
+\033[1;34m|\033[0m Elapsed:   {pad(elapsed_hm, 49, ' ')} \033[1;34m|\033[0m
+\033[1;34m|                                                              |\033[0m
+\033[1;34m|\033[0m {pad(caller_message, 60, ' ')} \033[1;34m|\033[0m
+\033[1;34m|\033[0m {pad('hint: ' + tooltips[state.status], 60, ' ')} \033[1;34m|\033[0m
+\033[1;34m'--------------------------------------------------------------'\033[0m'''
     print(ui)
 
 def find_elapsed(state, connection, cursor):
