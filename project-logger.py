@@ -11,7 +11,7 @@ class OneOrTwo(argparse.Action):
         setattr(namespace, self.dest, values)
         if len(values) > 2:
             parser.error(f"{option_string} requires at least 1 but no more than 2 arguments")
-@dataclass
+@dataclass(slots=True)
 class State:
     status: str
     session: str
@@ -37,15 +37,23 @@ def display_ui(state, tooltips, caller_message, elapsed):
     elapsed_hm = str(elapsed)
     elapsed_hm = elapsed_hm[:4]
 
-    ui = f''' Project Logger
+    status = state.status
+    if status == 'running':
+        status = '\033[32mrunning\033[0m'
+    elif status == 'paused':
+        status = '\033[33mpaused\033[0m'
 
- Status:    {state.status}
+    ui = f'''\033[1;34m------------------------------------------------------------\033[0m
+ \033[1;34mProject Logger\033[0m
+
+ Status:    {status}
  Project:   {state.project}
  Task:      {state.task}
  Elapsed:   {elapsed_hm}
 
  {caller_message}
- {tooltips[state.status]}
+ hint: {tooltips[state.status]}
+\033[1;34m-----------------------------------------------------------\033[0m
     '''
     print(ui)
 
@@ -71,13 +79,12 @@ def find_elapsed(state, connection, cursor):
     if elapsed.days > 0:
         # should make this more elegant
         print(' Total time elapsed: ' + str(elapsed) + '\n')
-        raise RuntimeError('project-logger does not currently support running for over 24 hours')
+        raise RuntimeError(f'\033[31mproject-logger does not currently support running for over 24 hours\033[0m')
 
     return elapsed
 
 def push_log(state, connection, cursor):
-    now = datetime.now()
-    end = date_to_str(now)
+    end = date_to_str(datetime.now())
 
     push_log_query = '''
     INSERT INTO Log (session, project, task, start, end)
@@ -108,55 +115,82 @@ def handle_status(state, connection, cursor):
     return ''
 
 def handle_begin(state, connection, cursor, begin_args):
-    message = 'timer started, use -p to pause or -e to end'
-    if state.status != 'idle':
-        message = 'timer already running, use -e to end before starting a timer'
+    state.status = 'running'
+    now = datetime.now()
+    state.session = now.strftime('%Y%m%d%H%M%S')
+    state.start = date_to_str(now)
+
+    if len(begin_args) == 1:
+        state.project = begin_args[0]
+        state.task = 'none'
     else:
-        state.status = 'running'
+        state.project = begin_args[0]
+        state.task = begin_args[1]
 
-        now = datetime.now()
-        state.session = now.strftime('%Y%m%d%H%M%S')
-        state.start = date_to_str(now)
+    return 'timer started'
 
-        if len(begin_args) == 1:
-            state.project = begin_args[0]
-            state.task = 'none'
-        else:
-            state.project = begin_args[0]
-            state.task = begin_args[1]
+def handle_task(state, connection, cursor, task):
+    end = datetime.now()
+    start = str_to_date(state.start)
 
-    return message
+    if end < start:
+        # should not happen unless ability to edit start and end datetime is added
+        return f'\033[31mERROR: end date after start date\033[0m'
 
-def handle_task(state, connection, cursor, args):
-    print("task")
+    push_log(state, connection, cursor)
+    state.start = date_to_str(end)
+    state.task = task
+    return 'new task started'
 
 def handle_end(state, connection, cursor):
-    message = 'timer ended, log saved successfully'
-    if state.status == 'idle':
-        message = 'timer not running, use -b to begin timer'
-    else:
-        end = datetime.now()
-        start = str_to_date(state.start)
+    end = datetime.now()
+    start = str_to_date(state.start)
 
-        if end < start:
-            # should not happen unless ability to edit start and end datetime is added
-            return 'error: end date after start date'
+    if end < start:
+        # should not happen unless ability to edit start and end datetime is added
+        return f'\033[31mERROR: end date after start date\033[0m'
 
-        state.status = 'idle'
-        state.end = date_to_str(end)
-
-        push_log(state, connection, cursor)
-
-    return message
+    push_log(state, connection, cursor)
+    state.status = 'idle'
+    state.session = '-'
+    state.project = '-'
+    state.task = '-'
+    return 'timer ended, log saved successfully'
 
 def handle_pause(state, connection, cursor):
-    print("pause")
+    end = datetime.now()
+    start = str_to_date(state.start)
+
+    if end < start:
+        # should not happen unless ability to edit start and end datetime is added
+        return f'\033[31mERROR: end date after start date\033[0m'
+
+    state.status = 'paused'
+    push_log(state, connection, cursor)
+    state.start = date_to_str(end)
+    return 'timer paused'
 
 def handle_resume(state, connection, cursor):
-    print("resume")
+    state.status = 'running'
+    now = datetime.now()
+    state.start = date_to_str(now)
+    return 'timer resumed'
 
 def handle_cancel(state, connection, cursor):
-    print("cancel")
+
+    cancel_query = '''
+    DELETE FROM Log
+    WHERE session = ?
+    AND task = ?;
+    '''
+    cursor.execute(cancel_query, (state.session, state.task))
+
+    state.status = 'idle'
+    state.session = '-'
+    state.project = '-'
+    state.task = '-'
+
+    return 'task cancelled'
 
 def handle_man():
     print("man")
@@ -209,26 +243,67 @@ if __name__ == '__main__':
         group.add_argument('-p', '--pause', action='store_true')
         group.add_argument('-r', '--resume', action='store_true')
         group.add_argument('-c', '--cancel', action='store_true')
+        group.add_argument('-R', '--report')
         group.add_argument('--man', action='store_true', help='show full manual')
 
         # Parse Arguments
         args = parser.parse_args()
 
         # Dispatch
-        if args.begin != None:
-            message = handle_begin(state, connection, cursor, args.begin)
-        elif args.task != None:
-            message = handle_task(state, connection, cursor, args.task)
+        if args.begin is not None:
+            if state.status != 'idle':
+                message = f'\033[31mERROR: timer already running\033[0m'
+            else:
+                message = handle_begin(state, connection, cursor, args.begin)
+
+        elif args.task is not None:
+            if state.status == 'idle':
+                message = f'\033[31mERROR: timer not running\033[0m'
+            else:
+                message = handle_task(state, connection, cursor, args.task)
+
         elif args.end == True:
-            message = handle_end(state, connection, cursor)
+            if state.status == 'idle':
+                message = f'\033[31mERROR: timer not running\033[0m'
+            else:
+                message = handle_end(state, connection, cursor)
+
         elif args.pause == True:
-            message = handle_pause(state, connection, cursor)
+            if state.status == 'idle':
+                message = f'\033[31mERROR: timer not running\033[0m'
+            elif state.status == 'paused':
+                message = f'\033[31mERROR: timer already paused\033[0m'
+            else:
+                message = handle_pause(state, connection, cursor)
+
         elif args.resume == True:
-            message = handle_resume(state, connection, cursor)
+            if state.status == 'idle':
+                message = f'\033[31mERROR: timer not running\033[0m'
+            elif state.status == 'running':
+                message = f'\033[31mERROR: timer already running\033[0m'
+            else:
+                message = handle_resume(state, connection, cursor)
+
         elif args.cancel == True:
-            message = handle_cancel(state, connection, cursor)
+            if state.status == 'idle':
+                message = f'\033[31mERROR: timer not running\033[0m'
+            else:
+                message = handle_cancel(state, connection, cursor)
+
         elif args.man == True:
             handle_man()
+
+        elif args.report is not None:
+            if state.status != 'idle':
+                ans = input(f'\033[1;34mtimer is still running, are you sure you want to generate raport? (y/n):\033[0m')
+                if ans == 'y' or ans == 'yes' or ans == 'Y':
+                    pass
+                else:
+                    print('report cancelled')
+                    sys.exit(0)
+
+            sys.exit(0)
+
         else: # status or nothing passed
             message = handle_status(state, connection, cursor)
 
@@ -237,5 +312,3 @@ if __name__ == '__main__':
     ### Testing ###
 
     display_ui(state, tooltips, message,find_elapsed(state, connection, cursor))
-    state.start = '2025-12-20 10:51:39'
-    print(find_elapsed(state, connection, cursor))
