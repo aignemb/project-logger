@@ -205,6 +205,18 @@ def handle_cancel(state, connection, cursor):
 def handle_man():
     print("man")
 
+def handle_report(connection, cursor):
+    logs_query = '''
+    SELECT id, project, task, start, end FROM Log
+    WHERE start BETWEEN '2025-12-22 12:00:00' AND '2025-12-23 00:00:00';
+    '''
+    
+    cursor.execute(logs_query)
+    log = cursor.fetchone()
+    while log is not None:
+        print(log)
+        log = cursor.fetchone()
+
 if __name__ == '__main__':
 
     with sqlite3.connect('pl.db') as connection:
@@ -311,6 +323,8 @@ if __name__ == '__main__':
                 else:
                     print('report cancelled')
                     sys.exit(0)
+
+                handle_report(connection, cursor)
 
             sys.exit(0)
 
